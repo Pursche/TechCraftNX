@@ -37,3 +37,4 @@
 *.pfs0
 
 build/*
+.vs
