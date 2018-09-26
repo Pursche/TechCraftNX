@@ -1,0 +1,32 @@
+{
+  // The "environments" property is an array of key value pairs of the form
+  // { "EnvVar1": "Value1", "EnvVar2": "Value2" }
+  "environments": [
+    {
+      "MINGW_PREFIX": "D:/devkitPro/msys2/mingw64",
+      "MINGW_CHOST ": "aarch64-none-elf",
+      "MINGW_PACKAGE_PREFIX": "aarch64-none-elf",
+      "MSYSTEM": "MINGW64",
+      "MSYSTEM_CARCH": "aarch64",
+      "MSYSTEM_PREFIX": "${env.MINGW_PREFIX}",
+      "SHELL": "${env.MINGW_PREFIX}/../usr/bin/bash",
+      "TEMP": "${env.MINGW_PREFIX}/../tmp",
+      "TMP": "${env.TEMP}",
+      "PATH": "${env.MINGW_PREFIX}/bin;${env.MINGW_PREFIX}/../usr/local/bin;${env.MINGW_PREFIX}/../usr/bin;${env.PATH}",
+      "INCLUDE": "src;${env.MINGW_PREFIX}/mingw/include"
+    }
+  ],
+
+  "configurations": [
+    {
+      "name": "NX",
+      "inheritEnvironments": [ "gcc_arm" ],
+      "includePath": [
+        // Use the include path defined above.
+        "${env.INCLUDE}"
+      ],
+      "defines": [ "PLATFORM_NX", "_DEBUG", "UNICODE", "_UNICODE" ],
+      "intelliSenseMode": "linux-gcc-arm"
+    }
+  ]
+}
