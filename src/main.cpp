@@ -13,6 +13,8 @@
 #include <string.h>
 #include <switch.h>
 
+#include "tracy/Tracy.hpp"
+
 int main(int argc, char* argv[])
 {
 	initNxLink();
@@ -108,6 +110,7 @@ int main(int argc, char* argv[])
 		// Render stuff!
 		renderer->Render();
 		renderer->Present();
+		FrameMark;
 	}
 
 	renderer->Deinit();
