@@ -110,13 +110,8 @@ int main(int argc, char* argv[])
 		renderer->Present();
 	}
 
-	// Deinitialize Renderer
-	printf("Deinitializing renderer");
 	renderer->Deinit();
-
-	printf("Deinitializing NxLink");
 	deinitNxLink();
-
-	printf("Successfully terminated.\n");
-	return EXIT_SUCCESS;
+	romfsExit();
+	return 0;
 }
