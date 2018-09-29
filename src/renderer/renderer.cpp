@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <fstream>
 
 // GLM headers
 #define GLM_FORCE_PURE
@@ -19,6 +20,156 @@
 #include "../nxlink.h"
 
 #include "model.h"
+
+GLuint loadShaderProgram(const std::string& vertexShaderPath, const std::string& fragmentShaderPath)
+{
+	printf("Reading vertex shader...\n");
+	std::ifstream vertexShaderFile(vertexShaderPath);
+	vertexShaderFile.seekg(0, std::ios::end);
+	std::vector<char> vertexShaderData(vertexShaderFile.tellg());
+	vertexShaderFile.seekg(0, std::ios::beg);
+	vertexShaderFile.read(vertexShaderData.data(), vertexShaderData.size());
+
+	printf("Reading fragment shader...\n");
+	std::ifstream fragmentShaderFile(fragmentShaderPath);
+	fragmentShaderFile.seekg(0, std::ios::end);
+	std::vector<char> fragmentShaderData(fragmentShaderFile.tellg());
+	fragmentShaderFile.seekg(0, std::ios::beg);
+	fragmentShaderFile.read(fragmentShaderData.data(), fragmentShaderData.size());
+
+	const char* vertexShaderCode = vertexShaderData.data();
+	const char* fragmentShaderCode = fragmentShaderData.data();
+
+	// Create the shaders
+	GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+	GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+
+	GLint result = GL_FALSE;
+	int infoLogLength;
+
+	// Compile Vertex Shader
+	printf("Compiling shader : %s\n", vertexShaderPath.c_str());
+	glShaderSource(vertexShader, 1, (const GLchar**)&vertexShaderCode, NULL);
+	glCompileShader(vertexShader);
+
+	// Check Vertex Shader
+	glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &result);
+	glGetShaderiv(vertexShader, GL_INFO_LOG_LENGTH, &infoLogLength);
+	if (infoLogLength > 0)
+	{
+		char* vertexShaderErrorMessage = (char*)malloc(infoLogLength + 1);
+		glGetShaderInfoLog(vertexShader, infoLogLength, NULL, vertexShaderErrorMessage);
+		fprintf(stderr, "%s\n", vertexShaderErrorMessage);
+		free(vertexShaderErrorMessage);
+		exit(1);
+	}
+
+	// Compile Fragment Shader
+	printf("Compiling shader : %s\n", fragmentShaderPath.c_str());
+	glShaderSource(fragmentShader, 1, (const GLchar**)&fragmentShaderCode, NULL);
+	glCompileShader(fragmentShader);
+
+	// Check Fragment Shader
+	glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &result);
+	glGetShaderiv(fragmentShader, GL_INFO_LOG_LENGTH, &infoLogLength);
+	if (infoLogLength > 0)
+	{
+		char* fragmentShaderErrorMessage = (char*)malloc(infoLogLength + 1);
+		glGetShaderInfoLog(fragmentShader, infoLogLength, NULL, fragmentShaderErrorMessage);
+		fprintf(stderr, "%s\n", fragmentShaderErrorMessage);
+		free(fragmentShaderErrorMessage);
+		exit(1);
+	}
+
+	// Link the program
+	printf("Linking program\n");
+	GLuint program = glCreateProgram();
+	glAttachShader(program, vertexShader);
+	glAttachShader(program, fragmentShader);
+
+	glLinkProgram(program);
+
+	// Check the program
+	glGetProgramiv(program, GL_LINK_STATUS, &result);
+	glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLogLength);
+	if (infoLogLength > 0)
+	{
+		char* programErrorMessage = (char*)malloc(infoLogLength + 1);
+		glGetProgramInfoLog(program, infoLogLength, NULL, programErrorMessage);
+		printf("%s\n", programErrorMessage);
+		free(programErrorMessage);
+		exit(1);
+	}
+
+	glDetachShader(program, vertexShader);
+	glDetachShader(program, fragmentShader);
+
+	glDeleteShader(vertexShader);
+	glDeleteShader(fragmentShader);
+
+	return program;
+}
+
+void GLAPIENTRY
+MessageCallback( 
+    GLenum source,
+    GLenum type,
+    GLuint id,
+    GLenum severity,
+    GLsizei length,
+    const GLchar* message,
+    const void* userParam)
+{
+    //if (severity == GL_DEBUG_SEVERITY_NOTIFICATION)
+    //{
+    //    // these are just annoying
+    //    return;
+    //}
+
+    printf("OpenGL message: %s\n", message);
+    printf("type: ");
+    switch (type) 
+    {
+    case GL_DEBUG_TYPE_ERROR:
+        printf("ERROR");
+        break;
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+        printf("DEPRECATED_BEHAVIOR");
+        break;
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+        printf("UNDEFINED_BEHAVIOR");
+        break;
+    case GL_DEBUG_TYPE_PORTABILITY:
+        printf("PORTABILITY");
+        break;
+    case GL_DEBUG_TYPE_PERFORMANCE:
+        printf("PERFORMANCE");
+        break;
+    case GL_DEBUG_TYPE_OTHER:
+        printf("OTHER");
+        break;
+    }
+    printf(", ");
+ 
+    printf("id: %u, ", id);
+    printf("severity: ");
+    switch (severity)
+    {
+    case GL_DEBUG_SEVERITY_NOTIFICATION:
+        printf("NOTIFICATION");
+        break;
+    case GL_DEBUG_SEVERITY_LOW:
+        printf("LOW");
+        break;
+    case GL_DEBUG_SEVERITY_MEDIUM:
+        printf("MEDIUM");
+        break;
+    case GL_DEBUG_SEVERITY_HIGH:
+        printf("HIGH");
+        break;
+    }
+    printf("\n");
+}
 
 //-----------------------------------------------------------------------------
 // EGL initialization
@@ -127,9 +278,9 @@ static void setMesaConfig()
 	//setenv("MESA_NO_ERROR", "1", 1);
 
 	// Uncomment below to enable Mesa logging:
-	//setenv("EGL_LOG_LEVEL", "debug", 1);
-	//setenv("MESA_VERBOSE", "all", 1);
-	//setenv("NOUVEAU_MESA_DEBUG", "1", 1);
+	setenv("EGL_LOG_LEVEL", "debug", 1);
+	setenv("MESA_VERBOSE", "all", 1);
+	setenv("NOUVEAU_MESA_DEBUG", "1", 1);
 
 	// Uncomment below to enable shader debugging in Nouveau:
 	//setenv("NV50_PROG_OPTIMIZE", "0", 1);
@@ -150,6 +301,14 @@ bool CRenderer::Init()
 
 	// Load OpenGL routines using glad
 	gladLoadGL();
+
+	printf("GL Vendor: %s\n", glGetString(GL_VENDOR));
+    printf("GL Renderer: %s\n", glGetString(GL_RENDERER));
+    printf("GL Version: %s\n", glGetString(GL_VERSION));
+    printf("GL Shading Language: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));	
+
+	glEnable(GL_DEBUG_OUTPUT);
+	glDebugMessageCallback(MessageCallback, 0);
 
 	TRACE("Renderer initialised successfully!");
 
@@ -178,23 +337,8 @@ void CRenderer::Deinit()
 	deinitEgl(_display, _surface, _context);
 }
 
-
-static float r = 0;
-static float g = 0;
-static float b = 0;
-
 void CRenderer::Render()
 {
-	r += 0.01f;
-	g += 0.005f;
-	b += 0.007f;
-
-	if (r > 1.0f) r = 0;
-	if (g > 1.0f) g = 0;
-	if (b > 1.0f) b = 0;
-
-	glClearColor(r, g, b, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 void CRenderer::Present()

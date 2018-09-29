@@ -5,6 +5,10 @@
 #include <EGL/eglext.h> // EGL extensions
 #include <glad/glad.h>  // glad library (OpenGL loader)
 
+#include <string>
+
+GLuint loadShaderProgram(const std::string& vertexShaderPath, const std::string& fragmentShaderPath);
+
 class CRenderer
 {
 public:
