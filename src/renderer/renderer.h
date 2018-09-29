@@ -8,6 +8,7 @@
 #include <string>
 
 GLuint loadShaderProgram(const std::string& vertexShaderPath, const std::string& fragmentShaderPath);
+GLuint loadComputeShaderProgram(const std::string& computeShaderPath);
 
 class CRenderer
 {

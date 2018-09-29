@@ -7,10 +7,13 @@
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/euler_angles.hpp>
+#include <glm/gtc/constants.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include <switch.h>
 
 int main(int argc, char* argv[])
@@ -33,8 +36,9 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 
-	GLuint shaderProgram = loadShaderProgram("romfs:/shaders/chunk.vs", "romfs:/shaders/chunk.fs");
+	VisualChunk::init();
 
+	GLuint shaderProgram = loadShaderProgram("romfs:/shaders/chunk.vs", "romfs:/shaders/chunk.fs");
 
 	std::vector<Chunk> chunks;
 	std::vector<VisualChunk> visualChunks;
@@ -56,6 +60,13 @@ int main(int argc, char* argv[])
 
 	float t = 0.0f;
 
+	float cameraYaw = 0.0f;
+	float cameraPitch = 0.0f;
+	glm::vec3 cameraPos(0.0f);
+
+	float movementSpeed = 0.5f;
+	float lookSpeed = 0.07f;
+
 	// Main graphics loop
 	while (appletMainLoop())
 	{
@@ -70,19 +81,58 @@ int main(int argc, char* argv[])
 			break;
 		}
 
+		if (kDown & KEY_A)
+		{
+			VisualChunk::s_triangleFilteringEnabled = !VisualChunk::s_triangleFilteringEnabled;
+		}
+
+		if (kDown & KEY_B)
+		{
+			VisualChunk::s_freezeCulling = !VisualChunk::s_freezeCulling;
+		}
+
+		// Read joysticks
+		JoystickPosition joyLeft, joyRight;
+        hidJoystickRead(&joyLeft, CONTROLLER_P1_AUTO, JOYSTICK_LEFT);
+        hidJoystickRead(&joyRight, CONTROLLER_P1_AUTO, JOYSTICK_RIGHT);
+
+		const float moveRight = static_cast<float>(joyLeft.dx) / static_cast<float>(JOYSTICK_MAX);
+		const float moveForward = static_cast<float>(joyLeft.dy) / static_cast<float>(JOYSTICK_MAX);
+		const float lookRight = static_cast<float>(joyRight.dx) / static_cast<float>(JOYSTICK_MAX);
+		const float lookUp = static_cast<float>(joyRight.dy) / static_cast<float>(JOYSTICK_MAX);
+
+		cameraYaw += lookRight * lookSpeed;
+		cameraPitch -= lookUp * lookSpeed;
+		cameraPitch = std::min(cameraPitch, glm::half_pi<float>());
+		cameraPitch = std::max(cameraPitch, -glm::half_pi<float>());
+
+		cameraPos.x += (moveForward * sin(cameraYaw) * cos(cameraPitch) + moveRight * cos(cameraYaw)) * movementSpeed;
+		cameraPos.z += (moveForward * cos(cameraYaw) * cos(cameraPitch) + moveRight * -sin(cameraYaw)) * movementSpeed;
+		cameraPos.y -= moveForward * sin(cameraPitch) * movementSpeed;
+
+		glm::mat4 cameraMatrix = glm::translate(glm::mat4(1.0f), cameraPos) * glm::eulerAngleYX(cameraYaw, cameraPitch);
+
+		glm::mat4 matView = glm::inverse(cameraMatrix);
+		glm::mat4 matProj = glm::perspectiveFovLH(glm::radians(80.0f), 1280.0f, 720.0f, 0.1f, 1000.0f);
+
+		glm::mat4 matViewProj = matProj * matView;
+
+		CullChunkParams cullParams;
+		cullParams.matViewProj = matViewProj;
+
+		// Cull chunks
+		for (const VisualChunk& visualChunk : visualChunks)
+		{
+			cullChunk(visualChunk, cullParams);
+		}
+
 		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 		glClearDepth(1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glUseProgram(shaderProgram);
-		
-		glm::mat4 matWorld = glm::eulerAngleY(t) * glm::translate(glm::mat4(1.0f), glm::vec3(-7, -7, -7));
-		glm::mat4 matView = glm::lookAt(glm::vec3(-15, -13, -12), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
-		glm::mat4 matProj = glm::perspectiveFov(30.0f, 1280.0f, 720.0f, 0.1f, 1000.0f);
 
-		glm::mat4 matWorldViewProj = matProj * matView * matWorld;
-
-		glUniformMatrix4fv(0, 1, GL_FALSE, (const GLfloat*)&matWorldViewProj);
+		glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(matViewProj));
 
 		// Enable depth testing
 		glEnable(GL_DEPTH_TEST);
@@ -109,6 +159,10 @@ int main(int argc, char* argv[])
 		renderer->Render();
 		renderer->Present();
 	}
+
+	glDeleteProgram(shaderProgram);
+
+	VisualChunk::deinit();
 
 	renderer->Deinit();
 	deinitNxLink();

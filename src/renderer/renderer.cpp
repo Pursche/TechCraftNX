@@ -24,18 +24,20 @@
 GLuint loadShaderProgram(const std::string& vertexShaderPath, const std::string& fragmentShaderPath)
 {
 	printf("Reading vertex shader...\n");
-	std::ifstream vertexShaderFile(vertexShaderPath);
+	std::ifstream vertexShaderFile(vertexShaderPath, std::ios::binary);
 	vertexShaderFile.seekg(0, std::ios::end);
 	std::vector<char> vertexShaderData(vertexShaderFile.tellg());
 	vertexShaderFile.seekg(0, std::ios::beg);
 	vertexShaderFile.read(vertexShaderData.data(), vertexShaderData.size());
+	vertexShaderData.push_back('\0');
 
 	printf("Reading fragment shader...\n");
-	std::ifstream fragmentShaderFile(fragmentShaderPath);
+	std::ifstream fragmentShaderFile(fragmentShaderPath, std::ios::binary);
 	fragmentShaderFile.seekg(0, std::ios::end);
 	std::vector<char> fragmentShaderData(fragmentShaderFile.tellg());
 	fragmentShaderFile.seekg(0, std::ios::beg);
 	fragmentShaderFile.read(fragmentShaderData.data(), fragmentShaderData.size());
+	fragmentShaderData.push_back('\0');
 
 	const char* vertexShaderCode = vertexShaderData.data();
 	const char* fragmentShaderCode = fragmentShaderData.data();
@@ -106,6 +108,66 @@ GLuint loadShaderProgram(const std::string& vertexShaderPath, const std::string&
 
 	glDeleteShader(vertexShader);
 	glDeleteShader(fragmentShader);
+
+	return program;
+}
+
+GLuint loadComputeShaderProgram(const std::string& computeShaderPath)
+{
+	std::ifstream computeShaderFile(computeShaderPath, std::ios::binary);
+	computeShaderFile.seekg(0, std::ios::end);
+	std::vector<char> computeShaderData(computeShaderFile.tellg());
+	computeShaderFile.seekg(0, std::ios::beg);
+	computeShaderFile.read(computeShaderData.data(), computeShaderData.size());
+	computeShaderData.push_back('\0');
+
+	const char* computeShaderCode = computeShaderData.data();
+
+	// Create the shaders
+	GLuint computeShader = glCreateShader(GL_COMPUTE_SHADER);
+
+	GLint result = GL_FALSE;
+	int infoLogLength;
+
+	// Compile compute Shader
+	printf("Compiling shader: %s\n", computeShaderPath.c_str());
+	glShaderSource(computeShader, 1, (const GLchar**)&computeShaderCode, NULL);
+	glCompileShader(computeShader);
+
+	// Check compute Shader
+	glGetShaderiv(computeShader, GL_COMPILE_STATUS, &result);
+	glGetShaderiv(computeShader, GL_INFO_LOG_LENGTH, &infoLogLength);
+	if (infoLogLength > 0)
+	{
+		char* shaderErrorMessage = (char*)malloc(infoLogLength + 1);
+		glGetShaderInfoLog(computeShader, infoLogLength, NULL, shaderErrorMessage);
+		fprintf(stderr, "%s\n", shaderErrorMessage);
+		free(shaderErrorMessage);
+		exit(1);
+	}
+
+	// Link the program
+	printf("Linking program\n");
+	GLuint program = glCreateProgram();
+	glAttachShader(program, computeShader);
+
+	glLinkProgram(program);
+
+	// Check the program
+	glGetProgramiv(program, GL_LINK_STATUS, &result);
+	glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLogLength);
+	if (infoLogLength > 0)
+	{
+		char* programErrorMessage = (char*)malloc(infoLogLength + 1);
+		glGetProgramInfoLog(program, infoLogLength, NULL, programErrorMessage);
+		printf("%s\n", programErrorMessage);
+		free(programErrorMessage);
+		exit(1);
+	}
+
+	glDetachShader(program, computeShader);
+
+	glDeleteShader(computeShader);
 
 	return program;
 }
